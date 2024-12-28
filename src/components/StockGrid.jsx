@@ -2,11 +2,14 @@ import { useQuery } from 'react-query';
 import { SimpleGrid, Paper, Title, Text, Loader, Button } from '@mantine/core';
 import axios from 'axios';
 
-// Using Yahoo Finance API through RapidAPI
-const RAPID_API_KEY = 'YOUR_RAPIDAPI_KEY'; // You'll need to get this from RapidAPI
+const RAPID_API_KEY = import.meta.env.VITE_RAPID_API_KEY;
 const symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'TSLA', 'AMD'];
 
 async function fetchStockData() {
+  if (!RAPID_API_KEY) {
+    throw new Error('API key not configured');
+  }
+
   const options = {
     method: 'GET',
     url: 'https://yahoo-finance15.p.rapidapi.com/api/yahoo/qu/quote/AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,AMD',
@@ -16,17 +19,22 @@ async function fetchStockData() {
     }
   };
 
-  const response = await axios.request(options);
-  const stockData = {};
-  
-  response.data.forEach(stock => {
-    stockData[stock.symbol] = {
-      volume: stock.volume || 0,
-      change: ((stock.regularMarketPrice - stock.regularMarketPreviousClose) / stock.regularMarketPreviousClose * 100).toFixed(2)
-    };
-  });
+  try {
+    const response = await axios.request(options);
+    const stockData = {};
+    
+    response.data.forEach(stock => {
+      stockData[stock.symbol] = {
+        volume: stock.volume || 0,
+        change: ((stock.regularMarketPrice - stock.regularMarketPreviousClose) / stock.regularMarketPreviousClose * 100).toFixed(2)
+      };
+    });
 
-  return { volumes: stockData };
+    return { volumes: stockData };
+  } catch (error) {
+    console.error('Error fetching stock data:', error);
+    throw error;
+  }
 }
 
 function StockGrid() {
@@ -35,12 +43,27 @@ function StockGrid() {
     fetchStockData,
     {
       refetchInterval: 30000, // Refetch every 30 seconds
+      retry: 3
     }
   );
 
-  if (isLoading) return <Loader />;
-  if (error) return <Text color="red">Error loading stock data</Text>;
-  if (!data?.volumes) return <Text>No stock data available</Text>;
+  if (isLoading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+      <Loader size="xl" />
+    </div>
+  );
+
+  if (error) return (
+    <Text color="red" align="center" size="lg" p="xl">
+      Error loading stock data: {error.message}
+    </Text>
+  );
+
+  if (!data?.volumes) return (
+    <Text align="center" size="lg" p="xl">
+      No stock data available
+    </Text>
+  );
 
   return (
     <SimpleGrid cols={3} spacing="lg" breakpoints={[
